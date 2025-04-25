@@ -3,34 +3,49 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import json
 import requests
 import csv
 import os
 import logging
 
-# Configure logging
+# Logging configuration
+os.makedirs("log", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("exchange_rate_log.log"), logging.StreamHandler()],
+    handlers=[
+        logging.FileHandler("log/exchange_rate_log.log"),
+        logging.StreamHandler(),
+    ],
 )
 
 
-def get_exchange_rate_BNA():
+def start_browser(browse):
+    """Start the browser 'edge' or 'chrome' with the specified options"""
+    if browse == "edge":
+        options = webdriver.EdgeOptions()
+        options.use_chromium = True
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        driver = webdriver.Edge(options=options)
+    elif browse == "chrome":
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        driver = webdriver.Chrome(options=options)
+    else:
+        raise ValueError("Unsupported browser type. Use 'edge' or 'chrome'.")
+    return driver
+
+
+def get_exchange_rate_BNA(browser="chrome"):
     """Fetch USD to ARS exchange rate from BNA website"""
     logging.info("Starting BNA exchange rate collection")
 
-    # Configuration
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-
     try:
         # Initialize driver
-        driver = webdriver.Chrome(options=chrome_options)
+        driver = start_browser(browser)
 
         # Open BNA website
         logging.info("Accessing BNA website")
@@ -93,18 +108,13 @@ def get_exchange_rate_BNA():
             logging.warning("Could not properly close BNA browser session")
 
 
-def get_exchange_rate_banco_provincia():
+def get_exchange_rate_banco_provincia(browser="chrome"):
     """Fetch USD to ARS exchange rate from Banco Provincia website"""
     logging.info("Starting Banco Provincia exchange rate collection")
 
-    # Configuration
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-
     try:
         # Initialize driver
-        driver = webdriver.Chrome(options=chrome_options)
+        driver = start_browser(browser)
 
         # Open Banco Provincia website
         logging.info("Accessing Banco Provincia website")
@@ -219,7 +229,8 @@ def get_exchange_rate_bbva():
 
 def save_to_csv(data_list):
     """Save collected data to CSV file"""
-    csv_path = os.path.abspath("exchange_rates_v2.csv")
+    os.makedirs("data", exist_ok=True)  # Crea la carpeta si no existe
+    csv_path = os.path.abspath(os.path.join("data", "exchange_rates_v2.csv"))
     logging.info(f"Saving data to CSV at: {csv_path}")
 
     try:
@@ -240,6 +251,9 @@ def save_to_csv(data_list):
                 writer.writeheader()
 
             for data in data_list:
+                data["exchange_date"] = normalize_date(data["exchange_date"])
+                data["buy_rate"] = normalize_number(data["buy_rate"])
+                data["sell_rate"] = normalize_number(data["sell_rate"])
                 writer.writerow(data)
 
         logging.info(f"Successfully saved {len(data_list)} records to CSV")
@@ -248,14 +262,32 @@ def save_to_csv(data_list):
         logging.error(f"Failed to save to CSV: {str(e)}")
 
 
-def main():
+def normalize_date(date_str):
+    """Convierte varias formas de fecha a YYYY-MM-DD"""
+    for fmt in ("%d/%m/%Y", "%d/%-m/%Y", "%Y-%m-%d"):  # el segundo para 25/4/2025
+        try:
+            return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return date_str  # si falla, devuelve el original
+
+
+def normalize_number(num_str):
+    """Convierte string a float, reemplazando coma por punto si hace falta"""
+    try:
+        return float(num_str.replace(",", "."))
+    except (ValueError, AttributeError):
+        return num_str  # si falla, deja el valor original
+
+
+def main(browser="chrome"):
     start_time = datetime.now()
     logging.info(f"=== Starting exchange rate collection at {start_time} ===")
 
     # Collect data from both sources
     results = []
-    results.append(get_exchange_rate_BNA())
-    results.append(get_exchange_rate_banco_provincia())
+    results.append(get_exchange_rate_BNA(browser))
+    results.append(get_exchange_rate_banco_provincia(browser))
     results.append(get_exchange_rate_bbva())
 
     # Save all results to CSV
@@ -277,4 +309,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    input_browser = input("Enter browser (edge/chrome): ").strip().lower()
+    if input_browser not in ["edge", "chrome"]:
+        print(f"Invalid browser choice {input_browser}. Choose 'edge' or 'chrome'...")
+    main(input_browser)
