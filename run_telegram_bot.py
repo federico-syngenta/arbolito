@@ -62,7 +62,7 @@ async def process_bank(update: Update, context):
 
     # Filtrar las filas por banco seleccionado
     if bank != "TODOS":
-        df = df[df["source"].str.upper() == bank]
+        df = df[df["source"].str.upper().str.contains(bank)]
 
     if df.empty:
         await update.message.reply_text(
