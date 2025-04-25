@@ -11,6 +11,7 @@ import os
 import logging
 import json
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -172,86 +173,130 @@ def get_exchange_rate_bancociudad():
 
     headers = {
         "Accept": "application/json, text/javascript, */*; q=0.01",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": "https://bancociudad.com.ar/institucional/",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
     }
 
-    cookies = {
-    "__uzma": "fadd7c5a-8008-4392-af92-614565dbbb94",
-    "__uzmb": "1745523191",
-    "__uzme": "2954",
-    "__ssds": "3",
-    "__ssuzjsr3": "a9be0cd8e",
-    "__uzmbj3": "1745524217",
-    "__uzmlj3": "mOcoaA9AcxS578823r4INpxvaZEQ8lVc6NhWnGM=",
-    "_gcl_au": "1.1.1367185401.1745524218",
-    "_ga": "GA1.1.827248151.1745524218",
-    "_fbp": "fb.2.1745524218867.663776400689637672",
-    "__uzmaj3": "fadd7c5a-8008-4392-af92-614565dbbb94",
-    "__uzmcj3": "941041334171",
-    "__uzmdj3": "1745524245",
-    "__uzmfj3": "7f600093b5a530-4929-4962-ae55-719e507131361745524217442792",
-    "uzmxj": "7f90006198bab7-3abd-4d69-b680-30a5580c43ce1-1745524217442792",
-    "WWWBCBA": "rd2o00000000000000000000ffffac166159o8081",
-    "_ga_S65TZ8VLMZ": "GS1.1.1745524218.1.1.1745524380.60.0.0",
-    "__uzmc": "283289428561",
-    "__uzmd": "1745524380",
-    "__uzmf": "7f600093b5a530-4929-4962-ae55-719e507131361745523191035118925",
-    "uzmx": "7f90006198bab7-3abd-4d69-bb80-30a5580c43ce1-1745523191035118925"
+    session = requests.Session()
+    session.headers.update(headers)
+
+    # Try to get and set cookies first
+    try:
+        session.get("https://bancociudad.com.ar/institucional/", timeout=10)
+    except Exception as e:
+        logging.warning(f"Failed to get initial cookies: {str(e)}")
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+
+            try:
+                json_data = response.json()
+            except json.JSONDecodeError:
+                logging.error(f"Failed to decode JSON from Banco Ciudad. Response content: {response.text}")
+                if "CAPTCHA" in response.text:
+                    raise Exception("CAPTCHA detected")
+                raise Exception("Failed to decode JSON from Banco Ciudad")
+
+            dolar = json_data["data"]["dolar"]
+            compra = dolar["compra"].replace("$", "").replace(".", "").replace(",", ".")
+            venta = dolar["venta"].replace("$", "").replace(".", "").replace(",", ".")
+
+            logging.info(f"Banco Ciudad rates: Compra={compra}, Venta={venta}")
+            return {
+                'collection_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'exchange_date': datetime.now().strftime("%d/%m/%Y"),
+                'buy_rate': float(compra),
+                'sell_rate': float(venta),
+                'source': 'Banco Ciudad',
+                'status': 'Success'
             }
 
-    try:
-        response = requests.get(url, headers=headers, params=params, cookies=cookies, timeout=10)
-        response.raise_for_status()
-
-        try:
-            json_data = response.json()
-        except json.JSONDecodeError:
-            logging.error(f"Failed to decode JSON from Banco Ciudad. Response content: {response.text}")
-            if "CAPTCHA" in response.text:
+        except Exception as e:
+            logging.error(f"Attempt {attempt + 1} failed for Banco Ciudad: {str(e)}")
+            if attempt == max_retries - 1:
                 return {
                     'collection_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'exchange_date': datetime.now().strftime("%d/%m/%Y"),
+                    'exchange_date': '',
                     'buy_rate': None,
                     'sell_rate': None,
                     'source': 'Banco Ciudad',
-                    'status': 'Error: CAPTCHA detected'
+                    'status': f"Error: {str(e)}"
                 }
-            raise Exception("Failed to decode JSON from Banco Ciudad")
+            time.sleep(5 * (attempt + 1))  # Exponential backoff
 
-        dolar = json_data["data"]["dolar"]
-        compra = dolar["compra"].replace("$", "").replace(".", "").replace(",", ".")
-        venta = dolar["venta"].replace("$", "").replace(".", "").replace(",", ".")
+    # This should never be reached due to the return in the loop, but just in case:
+    return {
+        'collection_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'exchange_date': '',
+        'buy_rate': None,
+        'sell_rate': None,
+        'source': 'Banco Ciudad',
+        'status': "Error: Max retries reached"
+    }
+    time.sleep(5)  # Wait for 5 seconds before retrying
 
-        logging.info(f"Banco Ciudad rates: Compra={compra}, Venta={venta}")
-        return {
-            'collection_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'exchange_date': datetime.now().strftime("%d/%m/%Y"),
-            'buy_rate': float(compra),
-            'sell_rate': float(venta),
-            'source': 'Banco Ciudad',
-            'status': 'Success'
-        }
+def get_exchange_rate_bbva():
+    logging.info("Starting BBVA exchange rate collection (using JSON endpoint)")
+
+    url = "https://servicios.bbva.com.ar/openmarket/servicios/cotizaciones/monedaExtranjera"
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+
+        logging.debug(f"Full BBVA response:\n{json.dumps(data, indent=2)}")
+
+        for item in data.get("respuesta", []):
+            moneda = item.get("moneda", {})
+            if "dolar" in moneda.get("descripcionLarga", "").lower():
+                compra = float(item["precioCompra"])
+                venta = float(item["precioVenta"])
+                logging.info(f"BBVA rates: Compra={compra}, Venta={venta}")
+                return {
+                    'collection_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'exchange_date': datetime.now().strftime("%Y-%m-%d"),
+                    'buy_rate': compra,
+                    'sell_rate': venta,
+                    'source': 'BBVA',
+                    'status': 'Success'
+                }
+
+        raise Exception("Dolares rate not found in BBVA response")
 
     except Exception as e:
-        logging.error(f"Failed to get Banco Ciudad direct rate: {str(e)}", exc_info=True)
+        logging.error(f"Error scraping BBVA exchange rate: {e}")
         return {
             'collection_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'exchange_date': '',
             'buy_rate': None,
             'sell_rate': None,
-            'source': 'Banco Ciudad',
+            'source': 'BBVA',
             'status': f"Error: {str(e)}"
         }
-
+        
 def save_to_csv(data_list):
     """Save collected data to CSV file"""
-    csv_path = os.path.abspath('exchange_rates.csv')
-    logging.info(f"Saving data to CSV at: {csv_path}")
+    csv_filename = 'exchange_rates.csv'
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, csv_filename)
+    logging.info(f"Attempting to save data to CSV at: {csv_path}")
    
     try:
         file_exists = os.path.isfile(csv_path)
+       
+        # Try to create the file if it doesn't exist
+        if not file_exists:
+            with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+                pass
+            logging.info(f"Created new file at {csv_path}")
        
         with open(csv_path, 'a', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['collection_time', 'exchange_date', 'buy_rate', 'sell_rate', 'source', 'status']
@@ -265,8 +310,47 @@ def save_to_csv(data_list):
                
         logging.info(f"Successfully saved {len(data_list)} records to CSV")
        
+    except PermissionError:
+        logging.error(f"Permission denied: Unable to write to {csv_path}. Check file permissions.")
+    except IOError as e:
+        logging.error(f"IO Error when writing to CSV: {str(e)}")
     except Exception as e:
-        logging.error(f"Failed to save to CSV: {str(e)}")
+        logging.error(f"Unexpected error when saving to CSV: {str(e)}", exc_info=True)
+
+    # Verify if the file was actually written
+    if os.path.exists(csv_path):
+        logging.info(f"CSV file found at {csv_path}")
+        # Log the file size
+        file_size = os.path.getsize(csv_path)
+        logging.info(f"CSV file size: {file_size} bytes")
+        
+        # Log the last few lines of the file
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as f:
+                last_lines = f.readlines()[-5:]  # Get last 5 lines
+                logging.info("Last few lines of the CSV:")
+                for line in last_lines:
+                    logging.info(line.strip())
+        except Exception as e:
+            logging.error(f"Error reading CSV file: {str(e)}")
+    else:
+        logging.error(f"CSV file not found at {csv_path} after attempting to write")
+
+    # Try to write to a different location if the original fails
+    if not os.path.exists(csv_path):
+        alt_path = os.path.join(os.path.expanduser('~'), csv_filename)
+        logging.info(f"Attempting to write to alternative location: {alt_path}")
+        try:
+            with open(alt_path, 'a', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ['collection_time', 'exchange_date', 'buy_rate', 'sell_rate', 'source', 'status']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                if csvfile.tell() == 0:
+                    writer.writeheader()
+                for data in data_list:
+                    writer.writerow(data)
+            logging.info(f"Successfully wrote to alternative location: {alt_path}")
+        except Exception as e:
+            logging.error(f"Failed to write to alternative location: {str(e)}")
 
 def main():
     start_time = datetime.now()
@@ -274,10 +358,11 @@ def main():
    
     # Collect data from all sources
     results = []
-    for func in [get_exchange_rate_BNA, get_exchange_rate_banco_provincia, get_exchange_rate_bancociudad]:
+    for func in [get_exchange_rate_BNA, get_exchange_rate_banco_provincia, get_exchange_rate_bancociudad, get_exchange_rate_bbva]:
         try:
             result = func()
             results.append(result)
+            logging.info(f"Collected data from {func.__name__}: {result}")
         except Exception as e:
             logging.error(f"Error in {func.__name__}: {str(e)}")
             results.append({
@@ -298,7 +383,7 @@ def main():
     success_count = sum(1 for result in results if result.get('status') == 'Success')
    
     if success_count > 0:
-        logging.info(f"=== Completed with {success_count}/3 successful collections in {duration.total_seconds():.2f} seconds ===")
+        logging.info(f"=== Completed with {success_count}/4 successful collections in {duration.total_seconds():.2f} seconds ===")
     else:
         logging.error(f"=== All collections failed after {duration.total_seconds():.2f} seconds ===")
 

@@ -102,3 +102,17 @@ function _0x147a(){var _0x2ec979=['ecb5e100e5a9a3e7f6d1fd97512215282','mousemove
 2025-04-24 17:48:29,908 - INFO - Saving data to CSV at: C:\Users\s1093678\OneDrive - Syngenta\Documents\Crop Protection\Cursos\Master en Data Science\20 - Web Mining\arbolito\BNA\exchange_rates.csv
 2025-04-24 17:48:29,915 - INFO - Successfully saved 3 records to CSV
 2025-04-24 17:48:29,915 - INFO - === Completed with 2/3 successful collections in 37.85 seconds ===
+2025-04-25 10:39:00,720 - INFO - === Starting exchange rate collection at 2025-04-25 10:39:00.720019 ===
+2025-04-25 10:39:00,730 - INFO - Starting BNA exchange rate collection
+2025-04-25 10:39:03,833 - INFO - Accessing BNA website
+2025-04-25 10:39:11,662 - INFO - Successfully obtained BNA rates: Buy=1140,0000, Sell=1190,0000 (Date: 25/4/2025)
+2025-04-25 10:39:14,145 - INFO - BNA browser session closed
+2025-04-25 10:39:14,145 - INFO - Starting Banco Provincia exchange rate collection
+2025-04-25 10:39:17,187 - INFO - Accessing Banco Provincia website
+2025-04-25 10:39:26,338 - INFO - Successfully obtained Banco Provincia rates: Buy=1150,00, Sell=1210,00
+2025-04-25 10:39:28,771 - INFO - Banco Provincia browser session closed
+2025-04-25 10:39:28,771 - INFO - Starting Banco Ciudad exchange rate collection
+2025-04-25 10:39:33,250 - INFO - Banco Ciudad rates: Compra= 1145.00, Venta= 1205.00
+2025-04-25 10:39:33,261 - INFO - Saving data to CSV at: C:\Users\s1093678\OneDrive - Syngenta\Documents\Crop Protection\Cursos\Master en Data Science\20 - Web Mining\repo\arbolito\BNA\exchange_rates.csv
+2025-04-25 10:39:33,265 - INFO - Successfully saved 3 records to CSV
+2025-04-25 10:39:33,266 - INFO - === Completed with 3/3 successful collections in 32.55 seconds ===

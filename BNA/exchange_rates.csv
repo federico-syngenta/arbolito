@@ -1,4 +1,0 @@
-collection_time,exchange_date,buy_rate,sell_rate,source,status
-2025-04-24 17:48:04,24/4/2025,"1140,0000","1190,0000",BNA,Success
-2025-04-24 17:48:22,24/04/2025,1135.00,1195.00,Banco Provincia,Success
-2025-04-24 17:48:29,24/04/2025,,,Banco Ciudad,Error: CAPTCHA detected
