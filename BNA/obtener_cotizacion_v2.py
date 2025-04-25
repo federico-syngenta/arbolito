@@ -227,6 +227,89 @@ def get_exchange_rate_bbva():
         }
 
 
+def get_exchange_rate_bancociudad(browser="chrome"):
+    """Fetch USD to ARS exchange rate from Banco Ciudad website"""
+    logging.info("Starting Banco Ciudad exchange rate collection")
+
+    url = "https://bancociudad.com.ar/institucional/herramientas/getCotizacionesInicio"
+    params = {"_": int(datetime.now().timestamp() * 1000)}
+
+    headers = {
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://bancociudad.com.ar/institucional/",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+    }
+
+    session = requests.Session()
+    session.headers.update(headers)
+
+    # Try to get and set cookies first
+    try:
+        session.get("https://bancociudad.com.ar/institucional/", timeout=10)
+    except Exception as e:
+        logging.warning(f"Failed to get initial cookies: {str(e)}")
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+
+            try:
+                json_data = response.json()
+            except json.JSONDecodeError:
+                logging.error(
+                    f"Failed to decode JSON from Banco Ciudad. Response content: {response.text}"
+                )
+                if "CAPTCHA" in response.text:
+                    raise Exception("CAPTCHA detected")
+                raise Exception("Failed to decode JSON from Banco Ciudad")
+
+            dolar = json_data["data"]["dolar"]
+            compra = dolar["compra"].replace("$", "").replace(".", "").replace(",", ".")
+            venta = dolar["venta"].replace("$", "").replace(".", "").replace(",", ".")
+
+            logging.info(f"Banco Ciudad rates: Compra={compra}, Venta={venta}")
+            return {
+                "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "exchange_date": datetime.now().strftime("%d/%m/%Y"),
+                "buy_rate": float(compra),
+                "sell_rate": float(venta),
+                "source": "Banco Ciudad",
+                "status": "Success",
+            }
+
+        except Exception as e:
+            logging.error(f"Attempt {attempt + 1} failed for Banco Ciudad: {str(e)}")
+            if attempt == max_retries - 1:
+                return {
+                    "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "exchange_date": "",
+                    "buy_rate": None,
+                    "sell_rate": None,
+                    "source": "Banco Ciudad",
+                    "status": f"Error: {str(e)}",
+                }
+            time.sleep(5 * (attempt + 1))  # Exponential backoff
+
+    # This should never be reached due to the return in the loop, but just in case:
+    return {
+        "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "exchange_date": "",
+        "buy_rate": None,
+        "sell_rate": None,
+        "source": "Banco Ciudad",
+        "status": "Error: Max retries reached",
+    }
+    time.sleep(5)  # Wait for 5 seconds before retrying
+
+
 def save_to_csv(data_list):
     """Save collected data to CSV file"""
     os.makedirs("data", exist_ok=True)  # Crea la carpeta si no existe
@@ -289,6 +372,7 @@ def main(browser="chrome"):
     results.append(get_exchange_rate_BNA(browser))
     results.append(get_exchange_rate_banco_provincia(browser))
     results.append(get_exchange_rate_bbva())
+    results.append(get_exchange_rate_bancociudad(browser))
 
     # Save all results to CSV
     save_to_csv(results)
