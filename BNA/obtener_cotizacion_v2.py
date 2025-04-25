@@ -312,4 +312,6 @@ if __name__ == "__main__":
     input_browser = input("Enter browser (edge/chrome): ").strip().lower()
     if input_browser not in ["edge", "chrome"]:
         print(f"Invalid browser choice {input_browser}. Choose 'edge' or 'chrome'...")
+        print("chrome is selected by default...")
+        input_browser = "chrome"
     main(input_browser)
