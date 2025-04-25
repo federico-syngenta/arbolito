@@ -37,6 +37,7 @@ async def start(update: Update, context):
     )
 
 
+# Process the bank request
 async def process_bank(update: Update, context):
     bank = update.message.text.upper()
 
@@ -45,12 +46,9 @@ async def process_bank(update: Update, context):
 
     logging.info(f"Buscando cotización para el banco: {bank}...")
 
-    # Si el mensaje es "start" o vacío, enviar mensaje de bienvenida
-    if bank == "START" or bank == "":
-        await update.message.reply_text(
-            "Bienvenido al bot de cotizaciones de bancos. "
-            "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones."
-        )
+    # Si el mensaje es vacío, enviar mensaje de bienvenida
+    if bank == "" or bank == "START":
+        await start(update, context)
         return ConversationHandler.END
 
     # Verificar si el archivo existe
@@ -108,8 +106,8 @@ def main():
     # Set the event loop policy
     nest_asyncio.apply()
 
-    # Start the Bot
-    asyncio.run(application.run_polling())
+    # Start the Bot, don't use asyncio.run
+    application.run_polling()
 
 
 if __name__ == "__main__":
