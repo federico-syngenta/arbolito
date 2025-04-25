@@ -1,6 +1,5 @@
 import os
 import logging
-import importlib.util
 import pandas as pd
 import io
 import asyncio
@@ -14,14 +13,11 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-
 from dotenv import load_dotenv
-
 
 # Load the environment variables from the .env file
 load_dotenv()
 bot_token = os.environ.get("TOKEN_TELEGRAM_ARBOLITO")
-
 
 # Set up logging
 logging.basicConfig(
@@ -29,17 +25,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # Define conversation states
 CHOOSING = 0
 
 
+# Handle the /start command
 async def start(update: Update, context):
     await update.message.reply_text(
         "Bienvenido al bot de cotizaciones de bancos. "
         "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones."
     )
-    return CHOOSING
 
 
 async def process_bank(update: Update, context):
@@ -49,6 +44,14 @@ async def process_bank(update: Update, context):
     csv_path = os.path.join("data", "exchange_rates_v2.csv")
 
     logging.info(f"Buscando cotización para el banco: {bank}...")
+
+    # Si el mensaje es "start" o vacío, enviar mensaje de bienvenida
+    if bank == "START" or bank == "":
+        await update.message.reply_text(
+            "Bienvenido al bot de cotizaciones de bancos. "
+            "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones."
+        )
+        return ConversationHandler.END
 
     # Verificar si el archivo existe
     if not os.path.exists(csv_path):
@@ -66,7 +69,7 @@ async def process_bank(update: Update, context):
 
     if df.empty:
         await update.message.reply_text(
-            f"No se encontraron cotizaciones para {bank}..."
+            f"No se encontraron cotizaciones para {bank}... \n\nPor favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones."
         )
         return ConversationHandler.END
 
@@ -90,14 +93,16 @@ def main():
     # Replace 'YOUR_BOT_TOKEN' with your actual bot token
     application = Application.builder().token(bot_token).build()
 
+    # Add handler for /start command
+    start_handler = CommandHandler("start", start)
+    application.add_handler(start_handler)
+
+    # Add handler for message processing
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
-        states={
-            CHOOSING: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_bank)],
-        },
+        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, process_bank)],
+        states={},
         fallbacks=[],
     )
-
     application.add_handler(conv_handler)
 
     # Set the event loop policy
