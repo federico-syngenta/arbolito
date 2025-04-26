@@ -37,52 +37,69 @@ async def start(update: Update, context):
     )
 
 
-# Process the bank request
 async def process_bank(update: Update, context):
     bank = update.message.text.upper()
 
-    # Path al archivo CSV
     csv_path = os.path.join("data", "exchange_rates_v2.csv")
-
     logging.info(f"Buscando cotización para el banco: {bank}...")
 
-    # Si el mensaje es vacío, enviar mensaje de bienvenida
     if bank == "" or bank == "START":
         await start(update, context)
         return ConversationHandler.END
 
-    # Verificar si el archivo existe
     if not os.path.exists(csv_path):
         await update.message.reply_text(
-            f"Error: No se encontró el archivo de cotizaciones... Verifique proceso 'run_exchange_rates.py'..."
+            "Error: No se encontró el archivo de cotizaciones... Verifique proceso 'run_exchange_rates.py'..."
         )
         return ConversationHandler.END
 
-    # Leer el archivo CSV
     df = pd.read_csv(csv_path)
 
-    # Filtrar las filas por banco seleccionado
     if bank != "TODOS":
         df = df[df["source"].str.upper().str.contains(bank)]
 
-    if df.empty:
-        await update.message.reply_text(
-            f"No se encontraron cotizaciones para {bank}... \n\nPor favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones."
+        if df.empty:
+            await update.message.reply_text(
+                f"No se encontraron cotizaciones para {bank}...\n\n"
+                "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS'."
+            )
+            return ConversationHandler.END
+
+        last_row = df.tail(1).iloc[0]
+        banco = last_row["source"]
+        compra = last_row["buy_rate"]
+        venta = last_row["sell_rate"]
+        fecha = last_row["exchange_date"]
+        hora = last_row["collection_time"].split()[1]
+
+        mensaje = (
+            f"📅 Cotización del {banco} al {fecha} {hora}:\n"
+            f"🔸 Compra: ${compra}\n"
+            f"🔹 Venta: ${venta}"
         )
-        return ConversationHandler.END
 
-    # Convertir el DataFrame a CSV en formato de texto
-    csv_buffer = io.StringIO()
-    df.to_csv(csv_buffer, index=False)
-    csv_buffer.seek(0)
+    else:
+        # Agrupar por banco y tomar la última cotización de cada uno
+        df["collection_time"] = pd.to_datetime(df["collection_time"])
+        ultimas = df.sort_values("collection_time").groupby("source").tail(1)
 
-    # Enviar el archivo CSV al usuario
-    await context.bot.send_document(
-        chat_id=update.effective_chat.id,
-        document=io.BytesIO(csv_buffer.getvalue().encode()),
-        filename="exchange_rates.csv",
-        caption=f"Aquí están las cotizaciones para {bank}.",
-    )
+        mensajes = []
+        for _, row in ultimas.iterrows():
+            banco = row["source"]
+            compra = row["buy_rate"]
+            venta = row["sell_rate"]
+            fecha = row["exchange_date"]
+            hora = row["collection_time"].strftime("%H:%M:%S")
+
+            mensajes.append(
+                f"🏦 {banco} ({fecha} {hora})\n"
+                f"🔸 Compra: ${compra}\n"
+                f"🔹 Venta: ${venta}"
+            )
+
+        mensaje = "\n\n".join(mensajes)
+
+    await update.message.reply_text(mensaje)
 
     return ConversationHandler.END
 
