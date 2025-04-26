@@ -3,49 +3,35 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
-import json
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import requests
 import csv
 import os
 import logging
+import json
 
-# Logging configuration
-os.makedirs("log", exist_ok=True)
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("log/exchange_rate_log.log"),
-        logging.StreamHandler(),
-    ],
+    handlers=[logging.FileHandler("exchange_rate_log.log"), logging.StreamHandler()],
 )
 
 
-def start_browser(browse):
-    """Start the browser 'edge' or 'chrome' with the specified options"""
-    if browse == "edge":
-        options = webdriver.EdgeOptions()
-        options.use_chromium = True
-        options.add_argument("--headless")
-        options.add_argument("--disable-gpu")
-        driver = webdriver.Edge(options=options)
-    elif browse == "chrome":
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--disable-gpu")
-        driver = webdriver.Chrome(options=options)
-    else:
-        raise ValueError("Unsupported browser type. Use 'edge' or 'chrome'.")
-    return driver
-
-
-def get_exchange_rate_BNA(browser="chrome"):
+def get_exchange_rate_BNA():
     """Fetch USD to ARS exchange rate from BNA website"""
     logging.info("Starting BNA exchange rate collection")
 
+    # Configuration
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+
     try:
         # Initialize driver
-        driver = start_browser(browser)
+        driver = webdriver.Chrome(options=chrome_options)
 
         # Open BNA website
         logging.info("Accessing BNA website")
@@ -108,13 +94,18 @@ def get_exchange_rate_BNA(browser="chrome"):
             logging.warning("Could not properly close BNA browser session")
 
 
-def get_exchange_rate_banco_provincia(browser="chrome"):
+def get_exchange_rate_banco_provincia():
     """Fetch USD to ARS exchange rate from Banco Provincia website"""
     logging.info("Starting Banco Provincia exchange rate collection")
 
+    # Configuration
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+
     try:
         # Initialize driver
-        driver = start_browser(browser)
+        driver = webdriver.Chrome(options=chrome_options)
 
         # Open Banco Provincia website
         logging.info("Accessing Banco Provincia website")
@@ -188,47 +179,7 @@ def get_exchange_rate_banco_provincia(browser="chrome"):
             logging.warning("Could not properly close Banco Provincia browser session")
 
 
-def get_exchange_rate_bbva():
-    logging.info("Starting BBVA exchange rate collection (using JSON endpoint)")
-
-    url = "https://servicios.bbva.com.ar/openmarket/servicios/cotizaciones/monedaExtranjera"
-    try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
-
-        logging.debug(f"Full BBVA response:\n{json.dumps(data, indent=2)}")
-
-        for item in data.get("respuesta", []):
-            moneda = item.get("moneda", {})
-            if "dolar" in moneda.get("descripcionLarga", "").lower():
-                compra = float(item["precioCompra"])
-                venta = float(item["precioVenta"])
-                logging.info(f"BBVA rates: Compra={compra}, Venta={venta}")
-                return {
-                    "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "exchange_date": datetime.now().strftime("%Y-%m-%d"),
-                    "buy_rate": compra,
-                    "sell_rate": venta,
-                    "source": "BBVA",
-                    "status": "Success",
-                }
-
-        raise Exception("Dolares rate not found in BBVA response")
-
-    except Exception as e:
-        logging.error(f"Error scraping BBVA exchange rate: {e}")
-        return {
-            "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "exchange_date": "",
-            "buy_rate": None,
-            "sell_rate": None,
-            "source": "BBVA",
-            "status": f"Error: {str(e)}",
-        }
-
-
-def get_exchange_rate_bancociudad(browser="chrome"):
-    """Fetch USD to ARS exchange rate from Banco Ciudad website"""
+def get_exchange_rate_bancociudad():
     logging.info("Starting Banco Ciudad exchange rate collection")
 
     url = "https://bancociudad.com.ar/institucional/herramientas/getCotizacionesInicio"
@@ -310,14 +261,60 @@ def get_exchange_rate_bancociudad(browser="chrome"):
     time.sleep(5)  # Wait for 5 seconds before retrying
 
 
+def get_exchange_rate_bbva():
+    logging.info("Starting BBVA exchange rate collection (using JSON endpoint)")
+
+    url = "https://servicios.bbva.com.ar/openmarket/servicios/cotizaciones/monedaExtranjera"
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+
+        logging.debug(f"Full BBVA response:\n{json.dumps(data, indent=2)}")
+
+        for item in data.get("respuesta", []):
+            moneda = item.get("moneda", {})
+            if "dolar" in moneda.get("descripcionLarga", "").lower():
+                compra = float(item["precioCompra"])
+                venta = float(item["precioVenta"])
+                logging.info(f"BBVA rates: Compra={compra}, Venta={venta}")
+                return {
+                    "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "exchange_date": datetime.now().strftime("%Y-%m-%d"),
+                    "buy_rate": compra,
+                    "sell_rate": venta,
+                    "source": "BBVA",
+                    "status": "Success",
+                }
+
+        raise Exception("Dolares rate not found in BBVA response")
+
+    except Exception as e:
+        logging.error(f"Error scraping BBVA exchange rate: {e}")
+        return {
+            "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "exchange_date": "",
+            "buy_rate": None,
+            "sell_rate": None,
+            "source": "BBVA",
+            "status": f"Error: {str(e)}",
+        }
+
+
 def save_to_csv(data_list):
     """Save collected data to CSV file"""
-    os.makedirs("data", exist_ok=True)  # Crea la carpeta si no existe
-    csv_path = os.path.abspath(os.path.join("data", "exchange_rates_v2.csv"))
-    logging.info(f"Saving data to CSV at: {csv_path}")
+    csv_filename = "exchange_rates.csv"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, csv_filename)
+    logging.info(f"Attempting to save data to CSV at: {csv_path}")
 
     try:
         file_exists = os.path.isfile(csv_path)
+
+        # Try to create the file if it doesn't exist
+        if not file_exists:
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                pass
+            logging.info(f"Created new file at {csv_path}")
 
         with open(csv_path, "a", newline="", encoding="utf-8") as csvfile:
             fieldnames = [
@@ -334,45 +331,90 @@ def save_to_csv(data_list):
                 writer.writeheader()
 
             for data in data_list:
-                data["exchange_date"] = normalize_date(data["exchange_date"])
-                data["buy_rate"] = normalize_number(data["buy_rate"])
-                data["sell_rate"] = normalize_number(data["sell_rate"])
                 writer.writerow(data)
 
         logging.info(f"Successfully saved {len(data_list)} records to CSV")
 
+    except PermissionError:
+        logging.error(
+            f"Permission denied: Unable to write to {csv_path}. Check file permissions."
+        )
+    except IOError as e:
+        logging.error(f"IO Error when writing to CSV: {str(e)}")
     except Exception as e:
-        logging.error(f"Failed to save to CSV: {str(e)}")
+        logging.error(f"Unexpected error when saving to CSV: {str(e)}", exc_info=True)
 
+    # Verify if the file was actually written
+    if os.path.exists(csv_path):
+        logging.info(f"CSV file found at {csv_path}")
+        # Log the file size
+        file_size = os.path.getsize(csv_path)
+        logging.info(f"CSV file size: {file_size} bytes")
 
-def normalize_date(date_str):
-    """Convierte varias formas de fecha a YYYY-MM-DD"""
-    for fmt in ("%d/%m/%Y", "%d/%-m/%Y", "%Y-%m-%d"):  # el segundo para 25/4/2025
+        # Log the last few lines of the file
         try:
-            return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            continue
-    return date_str  # si falla, devuelve el original
+            with open(csv_path, "r", encoding="utf-8") as f:
+                last_lines = f.readlines()[-5:]  # Get last 5 lines
+                logging.info("Last few lines of the CSV:")
+                for line in last_lines:
+                    logging.info(line.strip())
+        except Exception as e:
+            logging.error(f"Error reading CSV file: {str(e)}")
+    else:
+        logging.error(f"CSV file not found at {csv_path} after attempting to write")
+
+    # Try to write to a different location if the original fails
+    if not os.path.exists(csv_path):
+        alt_path = os.path.join(os.path.expanduser("~"), csv_filename)
+        logging.info(f"Attempting to write to alternative location: {alt_path}")
+        try:
+            with open(alt_path, "a", newline="", encoding="utf-8") as csvfile:
+                fieldnames = [
+                    "collection_time",
+                    "exchange_date",
+                    "buy_rate",
+                    "sell_rate",
+                    "source",
+                    "status",
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                if csvfile.tell() == 0:
+                    writer.writeheader()
+                for data in data_list:
+                    writer.writerow(data)
+            logging.info(f"Successfully wrote to alternative location: {alt_path}")
+        except Exception as e:
+            logging.error(f"Failed to write to alternative location: {str(e)}")
 
 
-def normalize_number(num_str):
-    """Convierte string a float, reemplazando coma por punto si hace falta"""
-    try:
-        return float(num_str.replace(",", "."))
-    except (ValueError, AttributeError):
-        return num_str  # si falla, deja el valor original
-
-
-def main(browser="chrome"):
+def main():
     start_time = datetime.now()
     logging.info(f"=== Starting exchange rate collection at {start_time} ===")
 
-    # Collect data from both sources
+    # Collect data from all sources
     results = []
-    results.append(get_exchange_rate_BNA(browser))
-    results.append(get_exchange_rate_banco_provincia(browser))
-    results.append(get_exchange_rate_bbva())
-    results.append(get_exchange_rate_bancociudad(browser))
+    for func in [
+        get_exchange_rate_BNA,
+        get_exchange_rate_banco_provincia,
+        get_exchange_rate_bancociudad,
+        get_exchange_rate_bbva,
+    ]:
+        try:
+            result = func()
+            results.append(result)
+            logging.info(f"Collected data from {func.__name__}: {result}")
+        except Exception as e:
+            logging.error(f"Error in {func.__name__}: {str(e)}")
+            results.append(
+                {
+                    "collection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "exchange_date": "",
+                    "buy_rate": None,
+                    "sell_rate": None,
+                    "source": func.__name__.replace("get_exchange_rate_", ""),
+                    "status": f"Error: {str(e)}",
+                }
+            )
 
     # Save all results to CSV
     save_to_csv(results)
@@ -384,7 +426,7 @@ def main(browser="chrome"):
 
     if success_count > 0:
         logging.info(
-            f"=== Completed with {success_count}/3 successful collections in {duration.total_seconds():.2f} seconds ==="
+            f"=== Completed with {success_count}/4 successful collections in {duration.total_seconds():.2f} seconds ==="
         )
     else:
         logging.error(
@@ -393,9 +435,4 @@ def main(browser="chrome"):
 
 
 if __name__ == "__main__":
-    input_browser = input("Enter browser (edge/chrome): ").strip().lower()
-    if input_browser not in ["edge", "chrome"]:
-        print(f"Invalid browser choice {input_browser}. Choose 'edge' or 'chrome'...")
-        print("chrome is selected by default...")
-        input_browser = "chrome"
-    main(input_browser)
+    main()
