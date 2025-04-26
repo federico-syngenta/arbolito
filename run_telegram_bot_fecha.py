@@ -32,8 +32,8 @@ CHOOSING = 0
 # Handle the /start command
 async def start(update: Update, context):
     await update.message.reply_text(
-        "Bienvenido al bot de cotizaciones de bancos. "
-        "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones, seguido de la fecha en formato 'yyyy-mm-dd'. Por ejemplo, bna 2025-04-25.\n"
+        "Bienvenido al bot de cotizaciones de bancos.\n\n"
+        "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones, seguido de la fecha en formato 'yyyy-mm-dd'.\n\nPor ejemplo, bna 2025-04-25.\n"
     )
 
 
@@ -96,7 +96,7 @@ async def process_bank(update: Update, context):
         hora = last_row["collection_time"].strftime("%H:%M:%S")
 
         mensaje = (
-            f"📅 Cotización del {banco} al {fecha_str} {hora}:\n"
+            f"📅 Cotización del {banco} al {fecha_str}:\n"
             f"🔸 Compra: ${compra}\n"
             f"🔹 Venta: ${venta}"
         )
@@ -110,7 +110,7 @@ async def process_bank(update: Update, context):
             fecha_str = row["exchange_date"]
             hora = row["collection_time"].strftime("%H:%M:%S")
             mensajes.append(
-                f"🏦 {banco} ({fecha_str} {hora})\n"
+                f"🏦 {banco} ({fecha_str})\n"
                 f"🔸 Compra: ${compra}\n"
                 f"🔹 Venta: ${venta}"
             )
