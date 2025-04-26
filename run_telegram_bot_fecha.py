@@ -33,7 +33,7 @@ CHOOSING = 0
 async def start(update: Update, context):
     await update.message.reply_text(
         "Bienvenido al bot de cotizaciones de bancos. "
-        "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones."
+        "Por favor, elija un banco (BNA, PROVINCIA, CIUDAD, BBVA) o escriba 'TODOS' para obtener todas las cotizaciones, seguido de la fecha en formato 'yyyy-mm-dd'. Por ejemplo, bna 2025-04-25.\n"
     )
 
 
